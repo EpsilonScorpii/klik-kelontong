@@ -17,14 +17,14 @@ class IsAdmin
     {
         // Pengecekan 1: Pastikan user login
         // Pengecekan 2: Pastikan properti is_admin di user object-nya TRUE
-        
-        // Kita gunakan $request->user() yang dijamin ada jika rute 
+
+        // Kita gunakan $request->user() yang dijamin ada jika rute
         // dilindungi oleh 'auth:sanctum'
         if ($request->user() && $request->user()->is_admin) {
             // Jika LULUS, lanjutkan ke Controller
             return $next($request);
         }
-        
+
         // Jika GAGAL, kirim response 403 Forbidden
         return response()->json(['message' => 'Unauthorized. Admin access required.'], 403);
     }

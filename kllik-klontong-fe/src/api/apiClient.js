@@ -1,21 +1,23 @@
-// src/api/apiClient.js
-
 import axios from 'axios';
 
-const apiClient = axios.create({
-  // Arahkan ke URL backend Laravel Anda
-  baseURL: 'http://localhost:8000', 
-  
-  // WAJIB: Agar browser mau mengirimkan cookie sesi
-  withCredentials: true,
-  
-  // BARU: Secara eksplisit memberitahu Axios nama cookie CSRF-nya
-  // Laravel menggunakan nama cookie: XSRF-TOKEN
-  xsrfCookieName: 'XSRF-TOKEN',
-  
-  // BARU: Secara eksplisit memberitahu Axios nama header yang harus digunakan
-  // Laravel mengharapkan header: X-XSRF-TOKEN
-  xsrfHeaderName: 'X-XSRF-TOKEN', 
+const api = axios.create({
+  baseURL: 'http://localhost:8000',
+  withCredentials: true, // PENTING untuk CORS!
+  headers: {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+  }
 });
 
-export default apiClient;
+// Interceptor untuk handle CSRF
+api.interceptors.request.use(async (config) => {
+  // Get CSRF cookie sebelum request pertama
+  if (config.method !== 'get') {
+    await axios.get('http://localhost:8000/sanctum/csrf-cookie', {
+      withCredentials: true
+    });
+  }
+  return config;
+});
+
+export default api;

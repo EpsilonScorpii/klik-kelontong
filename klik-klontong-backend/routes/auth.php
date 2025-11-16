@@ -10,13 +10,13 @@ use Illuminate\Support\Facades\Route;
 
 // Registration endpoint - rate limited to 5 requests per minute
 Route::post('/register', [RegisteredUserController::class, 'store'])
-    ->middleware(['guest', 'throttle:5,1'])
-    ->name('register');
+                ->middleware('guest')
+                ->name('register');
 
 // Login endpoint - rate limited to 5 requests per minute
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])
-    ->middleware(['guest', 'throttle:5,1'])
-    ->name('login');
+                ->middleware('guest')
+                ->name('login');
 
 // Forgot password endpoint - rate limited to 3 requests per minute
 Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
@@ -40,5 +40,5 @@ Route::post('/email/verification-notification', [EmailVerificationNotificationCo
 
 // Logout endpoint - requires authentication
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
-    ->middleware('auth')
-    ->name('logout');
+                ->middleware('auth')
+                ->name('logout');

@@ -19,6 +19,12 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertNoContent();
+        $response->assertStatus(201);
+        $response->assertJsonStructure([
+            'id',
+            'name',
+            'email',
+            'is_admin',
+        ]);
     }
 }

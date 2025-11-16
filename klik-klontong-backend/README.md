@@ -42,7 +42,7 @@ A Laravel 12 backend API with authentication powered by Laravel Breeze and Sanct
 
 3. **Configure environment variables**:
    
-   Edit `.env` file:
+   Edit `.env` file and ensure these critical settings:
    ```env
    APP_NAME="Klik Kelontong"
    APP_URL=http://localhost:8000
@@ -50,12 +50,24 @@ A Laravel 12 backend API with authentication powered by Laravel Breeze and Sanct
    # Database (using SQLite by default)
    DB_CONNECTION=sqlite
    
+   # Session Configuration for SPA Authentication
+   SESSION_DRIVER=cookie
+   SESSION_DOMAIN=null
+   SESSION_SECURE_COOKIE=false
+   SESSION_SAME_SITE=lax
+   
    # Frontend URL for CORS
    FRONTEND_URL=http://localhost:5173
    
-   # Sanctum stateful domains
+   # Sanctum stateful domains (no http:// prefix)
    SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1,127.0.0.1:5173
    ```
+   
+   **Important Notes:**
+   - `SESSION_DRIVER=cookie` is recommended for SPA authentication
+   - `SESSION_DOMAIN=null` is required for localhost development
+   - `SESSION_SECURE_COOKIE=false` for development (use `true` in production with HTTPS)
+   - `SESSION_SAME_SITE=lax` allows CORS requests with cookies
 
 4. **Database setup**:
    ```bash
@@ -538,29 +550,251 @@ User::create([
 
 ## Troubleshooting
 
+### CSRF Token Mismatch (Error 419)
+
+This is the most common issue with Sanctum SPA authentication. If you get a 419 error:
+
+1. **Check Session Configuration:**
+   ```bash
+   # In .env file
+   SESSION_DRIVER=cookie  # NOT 'file' or 'database' for SPA
+   SESSION_DOMAIN=null    # MUST be null for localhost
+   SESSION_SECURE_COOKIE=false  # false for http, true for https
+   SESSION_SAME_SITE=lax  # Required for CORS
+   ```
+
+2. **Verify CSRF Cookie Endpoint:**
+   ```bash
+   # Test that CSRF endpoint works
+   curl -X GET http://localhost:8000/sanctum/csrf-cookie -v
+   # Should return 204 No Content with Set-Cookie header
+   ```
+
+3. **Frontend Must Include:**
+   ```javascript
+   // In axios configuration
+   {
+     withCredentials: true,
+     headers: {
+       'X-Requested-With': 'XMLHttpRequest'  // CRITICAL for Sanctum
+     }
+   }
+   ```
+
+4. **Clear All Caches:**
+   ```bash
+   php artisan config:clear
+   php artisan cache:clear
+   php artisan route:clear
+   ```
+
 ### CORS Issues
 
 If you encounter CORS errors:
-1. Verify `FRONTEND_URL` in `.env`
-2. Check `config/cors.php` allowed origins
-3. Ensure `withCredentials: true` in axios
-4. Clear config cache: `php artisan config:clear`
+
+1. **Verify Frontend URL in `.env`:**
+   ```env
+   FRONTEND_URL=http://localhost:5173
+   SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1,127.0.0.1:5173
+   ```
+   
+   **Important:** No `http://` prefix in `SANCTUM_STATEFUL_DOMAINS`!
+
+2. **Check `config/cors.php` allowed origins:**
+   ```php
+   'allowed_origins' => [
+       'http://localhost:5173',
+       'http://127.0.0.1:5173',
+   ],
+   'supports_credentials' => true,  // MUST be true for Sanctum
+   ```
+
+3. **Ensure `withCredentials: true` in axios:**
+   ```javascript
+   const api = axios.create({
+     baseURL: 'http://localhost:8000',
+     withCredentials: true,  // Required for cookies
+   });
+   ```
+
+4. **Clear config cache:**
+   ```bash
+   php artisan config:clear
+   ```
 
 ### Session Issues
 
 If sessions are not persisting:
-1. Verify `SESSION_DRIVER=database` in `.env`
-2. Run migrations if using database sessions
-3. Check `SANCTUM_STATEFUL_DOMAINS` includes your frontend domain
-4. Ensure cookies are being sent with requests
+
+1. **Verify Session Driver:**
+   ```bash
+   # Check .env
+   SESSION_DRIVER=cookie  # Recommended for SPA
+   ```
+   
+   For cookie driver, no database setup needed. For database driver:
+   ```bash
+   php artisan migrate  # Ensure sessions table exists
+   ```
+
+2. **Check `SANCTUM_STATEFUL_DOMAINS` includes your frontend:**
+   ```env
+   # Both with and without port
+   SANCTUM_STATEFUL_DOMAINS=localhost,localhost:5173,127.0.0.1,127.0.0.1:5173
+   ```
+
+3. **Ensure cookies are being sent:**
+   - Check browser DevTools → Network → Request Headers
+   - Should see `Cookie: laravel_session=...` or similar
+
+4. **Check SESSION_DOMAIN setting:**
+   ```env
+   SESSION_DOMAIN=null  # For localhost (REQUIRED)
+   # For production subdomains: SESSION_DOMAIN=.example.com
+   ```
 
 ### Authentication Issues
 
 If authentication is not working:
-1. Verify CSRF cookie is being fetched first
-2. Check middleware configuration in `bootstrap/app.php`
-3. Ensure `auth:sanctum` middleware is applied to protected routes
-4. Clear application cache: `php artisan cache:clear`
+
+1. **Verify CSRF cookie is fetched FIRST:**
+   ```javascript
+   // Before login/register
+   await axios.get('/sanctum/csrf-cookie');
+   // Then do login
+   await axios.post('/login', credentials);
+   ```
+
+2. **Check middleware configuration in `bootstrap/app.php`:**
+   ```php
+   $middleware->api(prepend: [
+       \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+   ]);
+   ```
+
+3. **Verify routes are using correct middleware:**
+   ```php
+   // In routes/api.php
+   Route::middleware(['auth:sanctum'])->group(function () {
+       Route::get('/user', ...);
+   });
+   ```
+
+4. **Clear application cache:**
+   ```bash
+   php artisan config:clear
+   php artisan cache:clear
+   php artisan route:clear
+   ```
+
+### Login/Register Pages Not Opening
+
+If frontend pages are not loading:
+
+1. **Check backend is running:**
+   ```bash
+   php artisan serve
+   # Should be at http://localhost:8000
+   ```
+
+2. **Check frontend is running:**
+   ```bash
+   cd ../kllik-klontong-fe
+   npm run dev
+   # Should be at http://localhost:5173
+   ```
+
+3. **Verify CORS configuration** (see CORS Issues above)
+
+4. **Check browser console** for JavaScript errors
+
+### Logout Not Working
+
+If logout doesn't clear session:
+
+1. **Verify logout endpoint:**
+   ```javascript
+   // Must be POST request
+   await api.post('/logout');
+   ```
+
+2. **Check that logout invalidates session:**
+   ```php
+   // In AuthenticatedSessionController
+   Auth::guard('web')->logout();
+   $request->session()->invalidate();
+   $request->session()->regenerateToken();
+   ```
+
+3. **Clear cookies on frontend after logout:**
+   ```javascript
+   // After successful logout
+   document.cookie.split(";").forEach(cookie => {
+     const name = cookie.split("=")[0];
+     document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT";
+   });
+   ```
+
+### Production Checklist
+
+When deploying to production:
+
+1. **Update Environment Variables:**
+   ```env
+   APP_ENV=production
+   APP_DEBUG=false
+   SESSION_SECURE_COOKIE=true  # HTTPS required
+   APP_URL=https://api.example.com
+   FRONTEND_URL=https://example.com
+   SANCTUM_STATEFUL_DOMAINS=example.com,www.example.com
+   ```
+
+2. **SSL/HTTPS Configuration:**
+   - Ensure SSL certificate is valid
+   - Both frontend and backend should use HTTPS
+   - Set `SESSION_SECURE_COOKIE=true`
+
+3. **Session Domain for Subdomains:**
+   ```env
+   # If API is at api.example.com and frontend at www.example.com
+   SESSION_DOMAIN=.example.com  # Note the leading dot
+   ```
+
+4. **Run Optimizations:**
+   ```bash
+   composer install --no-dev --optimize-autoloader
+   php artisan config:cache
+   php artisan route:cache
+   php artisan view:cache
+   ```
+
+### Common Error Messages
+
+**"Unauthenticated" (401)**
+- Session expired or cookies not being sent
+- Solution: Fetch CSRF token before login, use `withCredentials: true`
+
+**"CSRF token mismatch" (419)**
+- Session configuration wrong or cookies not accessible
+- Solution: Check SESSION_DOMAIN, SESSION_SAME_SITE, and SESSION_SECURE_COOKIE
+
+**"CORS policy" errors**
+- CORS not configured or wrong origin
+- Solution: Update `config/cors.php` and clear config cache
+
+**"Too many attempts" (429)**
+- Rate limiting triggered
+- Solution: Wait and try again, or increase rate limits in routes
+
+### Getting Help
+
+If you're still experiencing issues:
+
+1. Check Laravel logs: `storage/logs/laravel.log`
+2. Enable debug mode temporarily: `APP_DEBUG=true`
+3. Use `php artisan route:list` to verify routes
+4. Use browser DevTools Network tab to inspect requests/responses
+5. Verify all configuration with `php artisan config:show`
 
 ## License
 

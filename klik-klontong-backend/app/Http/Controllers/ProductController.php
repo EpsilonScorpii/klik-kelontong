@@ -66,22 +66,24 @@ class ProductController extends Controller
      */
     public function update(Request $request, Product $product)
     {
-        // (Sama seperti 'store', tapi sedikit berbeda)
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'price' => 'required|integer',
-            // ... (tambahkan validasi lain seperti di store) ...
-            'image' => 'nullable|image|max:2048', // (Image tidak 'required' saat update)
+            'stock' => 'required|integer',
+            'category' => 'nullable|string',
+            'description' => 'nullable|string',
+            'discount_price' => 'nullable|integer',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         $imageUrl = $product->image_url; // Ambil URL gambar yang lama
 
         // 1. Cek jika ada gambar BARU
         if ($request->hasFile('image')) {
-            
+
             // 2. Hapus gambar LAMA (jika ada)
             if ($product->image_url) {
-                // Ubah URL (misal: /storage/products/...) 
+                // Ubah URL (misal: /storage/products/...)
                 // menjadi path (misal: public/products/...)
                 $oldPath = str_replace('/storage/', 'public/', $product->image_url);
                 Storage::delete($oldPath);
@@ -96,8 +98,11 @@ class ProductController extends Controller
         $product->update([
             'name' => $validatedData['name'],
             'price' => $validatedData['price'],
-            // ... (isi sisa fieldnya) ...
-            'image_url' => $imageUrl, // Simpan URL baru (atau lama jika tidak diubah)
+            'stock' => $validatedData['stock'],
+            'category' => $validatedData['category'] ?? null,
+            'description' => $validatedData['description'] ?? null,
+            'discount_price' => $validatedData['discount_price'] ?? null,
+            'image_url' => $imageUrl,
         ]);
 
         return response()->json($product); // Kembalikan produk yang terupdate

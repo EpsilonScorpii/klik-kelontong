@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\ProductController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ProductController;
 
 // Public routes - no authentication required
 require __DIR__.'/auth.php';
